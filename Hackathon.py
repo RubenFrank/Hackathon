@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
 #Konstanten +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-delta_t = 300
+delta_t = 300 #sekunden
 #Gebäude
 R_building = 0.014
 C_building = 5e7 
@@ -15,13 +15,17 @@ b = -0.1
 Q_wp_max = 10000.0
 #Thermischer Speicher
 E_th_max = 7000.0
-P_th_max = 10000.0
+Q_store_max = 10000.0
 #Batteriespeicher
 E_bat_max = 10000.0
 P_bat_max = 5000.0
 #PV-Anlage
 PV_efficiency = 0.2
 A_pv = 100
+#Preisdefinitionen (Preisgrenzen) in €/kWh
+price_low = 0.02
+price_high = 0.055 
+
 
 #Daten aus CSV auslesen ++++++++++++++++++++++++++++++++++++++++++++++
 data = pd.read_csv("Daten_hackathon.csv")       
@@ -29,19 +33,21 @@ n = len(data)
 timestamp = data.iloc[:, 0].to_numpy()          #Timestamp aus CSV                           
 GHI = data.iloc[:, 2].to_numpy()                #GHI Strahlung für PV in W/m²          
 T_out = data.iloc[:, 3].to_numpy()              #Aussentemperatur in °C           
-P_solarthermie = data.iloc[:, 4].to_numpy()     #Solarthermie-Erzeugung in W                   
+Q_solarthermie = data.iloc[:, 4].to_numpy()     #Solarthermie-Erzeugung in W                   
 Price = data.iloc[:, 5].to_numpy()              #Strompreis in €/kWh           
-P_demand_el = data.iloc[:, 6].to_numpy()        #elektrischer Bedarf in W           
-P_demand_th = data.iloc[:, 7].to_numpy()        #aktueller thermischer Bedarf in W           
+P_demand = data.iloc[:, 6].to_numpy()        #elektrischer Bedarf in W           
+Q_demand = data.iloc[:, 7].to_numpy()        #aktueller thermischer Bedarf in W           
 
 #Berechnung
 T_in = np.zeros(n); T_in[0] = 20    #Startwert 20°C
 E_th = 3500                         #Startwert 3500 Wh
 E_bat = 5000                        #Startwert 5000 Wh
 
-P_th_verbrauch=0
 Q_wp =0
+P_wp=0
 Q_heat=0
+Q_store=0
+P_bat=0
 delta_T_in=0
 
 kp=0.1
@@ -53,7 +59,7 @@ for i in range(500):
 
     #Berechnung Außeneinflüsse
     P_pv=GHI[i]*A_pv*PV_efficiency
-    COT = a-b*T_out[i]
+    COP = a-b*T_out[i]
     
     #Berechnung Speicherstand in Prozent
     E_bat_pct = E_bat/E_bat_max
@@ -63,10 +69,40 @@ for i in range(500):
     e_temp=T_soll - T_in[i]
     u_temp=kp*e_temp
     if(u_temp<0): u_temp=0
-    Q_heat=u_temp*P_th_max
+    Q_heat=u_temp*Q_store_max
 
-    P_needed_th=Q_heat+P_demand_th[i]
+    Q_needed=Q_heat-Q_solarthermie[i]
 
+    match Price[i]:
+        case x if x < 0:
+            if Q_needed>0:
+                if E_th_pct < 0.9:
+                    Q_wp=Q_wp_max
+                else: Q_wp=Q_needed
+            else: Q_store=Q_needed
+        
+        case x if x < price_low:
+            if Q_needed>0:
+                Q_wp=0 #ToDo +++++++++++++++++++++++++++++
+            else: Q_store=Q_needed
+
+        case x if x < price_high:
+            if Q_needed>0:
+                Q_wp=0 #ToDo +++++++++++++++++++++++++++++
+            else: Q_store=Q_needed
+
+        case _:
+            if Q_needed>0:
+                Q_wp=0 #ToDo +++++++++++++++++++++++++++++
+            else: Q_store=Q_needed
+            
+    E_th[i+1]=E_th[i]-(Q_store*(delta_t/3600))
+    P_wp=Q_wp/COP
+
+    P_needed=P_demand[i]+P_wp-P_pv
+
+
+    E_bat[i+1]=E_bat[i]-(P_bat*(delta_t/3600))
 
 
     #InnenTemp. berechnen
