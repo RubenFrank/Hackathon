@@ -40,8 +40,8 @@ Q_demand = data.iloc[:, 7].to_numpy()        #aktueller thermischer Bedarf in W
 
 #Berechnung
 T_in = np.zeros(n); T_in[0] = 20    #Startwert 20°C
-E_th = 3500                         #Startwert 3500 Wh
-E_bat = 5000                        #Startwert 5000 Wh
+E_th = np.zeros(n); E_th[0] = 3500                         #Startwert 3500 Wh
+E_bat = np.zeros(n);E_bat[0] = 5000                        #Startwert 5000 Wh
 
 Q_wp =0
 P_wp=0
@@ -54,25 +54,18 @@ kp=0.1
 e_temp=0
 u_temp=0
 
-f_wp=np.zeros[4]
-f_store_th=np.zeros[4]
+f_wp=np.zeros(4)
+f_store_th=np.zeros(4)
 
-f1_th=0
-f2_th=0
-f3_th=0
-f4_th=0
-f_store_th=0
-
-
-for i in range(500):
+for i in range(2000):
 
     #Berechnung Außeneinflüsse
     P_pv=GHI[i]*A_pv*PV_efficiency
     COP = a-b*T_out[i]
     
     #Berechnung Speicherstand in Prozent
-    E_bat_pct = E_bat/E_bat_max
-    E_th_pct = E_th/E_th_max
+    E_bat_pct = E_bat[i]/E_bat_max
+    E_th_pct = E_th[i]/E_th_max
 
     #Temp. regelung mit P-Regler
     e_temp=T_soll - T_in[i]
@@ -100,9 +93,9 @@ for i in range(500):
             f_wp[3]=1   
 
             f_store_th[0]=0
-            f_store_th[1]=0
-            f_store_th[2]=0.05
-            f_store_th[3]=0.1
+            f_store_th[1]=0.05
+            f_store_th[2]=0.1
+            f_store_th[3]=0.2
         case x if x < price_high:
             f_wp[0]=0.25
             f_wp[1]=0.5
@@ -112,7 +105,7 @@ for i in range(500):
             f_store_th[0]=0
             f_store_th[1]=0
             f_store_th[2]=0
-            f_store_th[3]=0
+            f_store_th[3]=0.1
         case _:
             f_wp[0]=0
             f_wp[1]=0.25
@@ -166,10 +159,14 @@ for i in range(500):
         T_in[i+1]=T_in[i]+delta_T_in    
     
 
-    print(T_in[i], end=" ")
+    print(round(T_in[i],3), end="   ")
     #print(i, end=" ")
-    print(P_pv, end=" ")
-    print(Q_heat)
+    
+    print(round(P_pv,3), end="   ")
+    print(round(P_needed,3), end="   ")
+    print(round(E_bat_pct,2), end="   ")
+    print(round(E_th_pct,2), end="   ")
+    print(round(Q_heat,3))
 
     
 
