@@ -54,6 +54,15 @@ kp=0.1
 e_temp=0
 u_temp=0
 
+f_wp=np.zeros[4]
+f_store_th=np.zeros[4]
+
+f1_th=0
+f2_th=0
+f3_th=0
+f4_th=0
+f_store_th=0
+
 
 for i in range(500):
 
@@ -75,27 +84,73 @@ for i in range(500):
 
     match Price[i]:
         case x if x < 0:
-            if Q_needed>0:
-                if E_th_pct < 0.9:
-                    Q_wp=Q_wp_max
-                else: Q_wp=Q_needed
-            else: Q_store=Q_needed
-        
+            f_wp[0]=1
+            f_wp[1]=1
+            f_wp[2]=1
+            f_wp[3]=1   
+
+            f_store_th[0]=0
+            f_store_th[1]=1
+            f_store_th[2]=1
+            f_store_th[3]=1       
         case x if x < price_low:
-            if Q_needed>0:
-                Q_wp=0 #ToDo +++++++++++++++++++++++++++++
-            else: Q_store=Q_needed
+            f_wp[0]=0.5
+            f_wp[1]=0.75
+            f_wp[2]=1
+            f_wp[3]=1   
 
+            f_store_th[0]=0
+            f_store_th[1]=0
+            f_store_th[2]=0.05
+            f_store_th[3]=0.1
         case x if x < price_high:
-            if Q_needed>0:
-                Q_wp=0 #ToDo +++++++++++++++++++++++++++++
-            else: Q_store=Q_needed
+            f_wp[0]=0.25
+            f_wp[1]=0.5
+            f_wp[2]=0.75
+            f_wp[3]=1   
 
+            f_store_th[0]=0
+            f_store_th[1]=0
+            f_store_th[2]=0
+            f_store_th[3]=0
         case _:
-            if Q_needed>0:
-                Q_wp=0 #ToDo +++++++++++++++++++++++++++++
-            else: Q_store=Q_needed
-            
+            f_wp[0]=0
+            f_wp[1]=0.25
+            f_wp[2]=0.5
+            f_wp[3]=0.75   
+
+            f_store_th[0]=0
+            f_store_th[1]=0
+            f_store_th[2]=0
+            f_store_th[3]=0
+          
+    if Q_needed > 0:
+        match E_th_pct:
+            case x if x >0.8:
+                Q_wp= min((f_wp[0]*Q_needed + f_store_th[0]*Q_store_max),Q_wp_max)
+                Q_store= Q_needed-Q_wp
+            case x if x >0.5:
+                Q_wp= min((f_wp[1]*Q_needed + f_store_th[1]*Q_store_max),Q_wp_max)
+                Q_store= Q_needed-Q_wp
+            case x if x >0.2:
+                Q_wp= min((f_wp[2]*Q_needed + f_store_th[2]*Q_store_max),Q_wp_max)
+                Q_store= Q_needed-Q_wp
+            case x if x >0.005:
+                Q_wp= min((f_wp[3]*Q_needed + f_store_th[3]*Q_store_max),Q_wp_max)
+                Q_store= Q_needed-Q_wp
+            case _:
+                Q_wp=Q_needed
+                Q_store=0
+    elif E_th_pct<1:
+        if E_th_pct<0.8:
+            Q_wp=0.1*Q_store_max 
+        else: Q_wp=0   
+        Q_store=Q_needed-Q_wp
+    else:     
+        Q_wp=0
+        # Was passiert, wenn Speicher voll und überschüssige Wärme????????
+
+
     E_th[i+1]=E_th[i]-(Q_store*(delta_t/3600))
     P_wp=Q_wp/COP
 
