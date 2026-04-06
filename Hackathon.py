@@ -47,8 +47,11 @@ Q_wp =0
 P_wp=0
 Q_heat=0
 Q_store=0
+P_pv=0
 P_bat=0
 delta_T_in=0
+
+P_buy=0
 
 kp=0.1
 e_temp=0
@@ -56,6 +59,7 @@ u_temp=0
 
 f_wp=np.zeros(4)
 f_store_th=np.zeros(4)
+f_bat=np.zeros(4)
 
 for i in range(2000):
 
@@ -143,11 +147,38 @@ for i in range(2000):
         Q_wp=0
         # Was passiert, wenn Speicher voll und überschüssige Wärme????????
 
-
     E_th[i+1]=E_th[i]-(Q_store*(delta_t/3600))
     P_wp=Q_wp/COP
 
     P_needed=P_demand[i]+P_wp-P_pv
+
+    if P_needed > 0:
+        match E_bat_pct:
+            case x if x >0.8:
+                P_bat= f_bat[0]*P_bat_max
+                P_buy= P_needed-P_bat
+                
+                Q_wp= min((f_wp[0]*Q_needed + f_store_th[0]*Q_store_max),Q_wp_max)
+                P_bat= P_needed-Q_wp
+            
+            
+            case x if x >0.5:
+                
+            case x if x >0.2:
+                
+            case x if x >0.005:
+                
+            case _:
+                Q_wp=Q_needed
+                Q_store=0
+    elif E_bat_pct<1:
+        if E_bat_pct<0.8:
+            Q_wp=0.1*Q_store_max 
+        else: Q_wp=0   
+        Q_store=Q_needed-Q_wp
+    else:     
+        Q_wp=0
+        # Was passiert, wenn Speicher voll und überschüssige Wärme????????
 
 
     E_bat[i+1]=E_bat[i]-(P_bat*(delta_t/3600))
