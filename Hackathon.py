@@ -40,8 +40,8 @@ Q_demand = data.iloc[:, 7].to_numpy()        #aktueller thermischer Bedarf in W
 
 #Berechnung
 T_in = np.zeros(n); T_in[0] = 20    #Startwert 20°C
-E_th = np.zeros(n); E_th[0] = 3500                         #Startwert 3500 Wh
-E_bat = np.zeros(n);E_bat[0] = 5000                        #Startwert 5000 Wh
+E_th = np.zeros(n+1); E_th[0] = 3500                         #Startwert 3500 Wh
+E_bat = np.zeros(n+1);E_bat[0] = 5000                        #Startwert 5000 Wh
 
 Q_wp =0
 P_wp=0
@@ -52,6 +52,7 @@ P_bat=0
 delta_T_in=0
 
 P_buy=0
+Cost=0
 
 kp=0.1
 e_temp=0
@@ -59,9 +60,11 @@ u_temp=0
 
 f_wp=np.zeros(4)
 f_store_th=np.zeros(4)
-f_bat=np.zeros(4)
 
-for i in range(2000):
+f_bat_use=np.zeros(5)
+f_bat_sell=np.zeros(5)
+
+for i in range(n):
 
     #Berechnung Außeneinflüsse
     P_pv=GHI[i]*A_pv*PV_efficiency
@@ -77,8 +80,10 @@ for i in range(2000):
     if(u_temp<0): u_temp=0
     Q_heat=u_temp*Q_store_max
 
+    #Berrechnung benötigte Wärmeleistung --> die Heizleistung - Leistung der Solarthermie 
     Q_needed=Q_heat-Q_solarthermie[i]
 
+    # Einstellung der Faktoren für Wärmepumpe, Speicher und Batterie, je nach Strompreis
     match Price[i]:
         case x if x < 0:
             f_wp[0]=1
@@ -89,7 +94,19 @@ for i in range(2000):
             f_store_th[0]=0
             f_store_th[1]=1
             f_store_th[2]=1
-            f_store_th[3]=1       
+            f_store_th[3]=1    
+
+            f_bat_use[0]=0
+            f_bat_use[1]=0
+            f_bat_use[2]=0
+            f_bat_use[3]=0
+            f_bat_use[4]=0
+
+            f_bat_sell[0]=-0.2
+            f_bat_sell[1]=-0.5
+            f_bat_sell[2]=-1
+            f_bat_sell[3]=-1
+            f_bat_sell[4]=-1
         case x if x < price_low:
             f_wp[0]=0.5
             f_wp[1]=0.75
@@ -100,6 +117,18 @@ for i in range(2000):
             f_store_th[1]=0.05
             f_store_th[2]=0.1
             f_store_th[3]=0.2
+
+            f_bat_use[0]=1
+            f_bat_use[1]=0.5
+            f_bat_use[2]=0
+            f_bat_use[3]=0
+            f_bat_use[4]=0
+
+            f_bat_sell[0]=0
+            f_bat_sell[1]=0
+            f_bat_sell[2]=0
+            f_bat_sell[3]=-0.1
+            f_bat_sell[4]=-0.2
         case x if x < price_high:
             f_wp[0]=0.25
             f_wp[1]=0.5
@@ -110,6 +139,18 @@ for i in range(2000):
             f_store_th[1]=0
             f_store_th[2]=0
             f_store_th[3]=0.1
+
+            f_bat_use[0]=1
+            f_bat_use[1]=0.75
+            f_bat_use[2]=0.5
+            f_bat_use[3]=0.25
+            f_bat_use[4]=0
+
+            f_bat_sell[0]=0.1
+            f_bat_sell[1]=0
+            f_bat_sell[2]=0
+            f_bat_sell[3]=0
+            f_bat_sell[4]=0
         case _:
             f_wp[0]=0
             f_wp[1]=0.25
@@ -120,7 +161,20 @@ for i in range(2000):
             f_store_th[1]=0
             f_store_th[2]=0
             f_store_th[3]=0
-          
+
+            f_bat_use[0]=1
+            f_bat_use[1]=1
+            f_bat_use[2]=0.75
+            f_bat_use[3]=0.5
+            f_bat_use[4]=0.25
+
+            f_bat_sell[0]=0.3
+            f_bat_sell[1]=0.1
+            f_bat_sell[2]=0.05
+            f_bat_sell[3]=0
+            f_bat_sell[4]=0
+
+    # Einstellung der Wärmepumpe und des Bezugs aus dem thermischen Speicher mit den eingestellten Faktoren (je nach Speicherstand)      
     if Q_needed > 0:
         match E_th_pct:
             case x if x >0.8:
@@ -147,52 +201,63 @@ for i in range(2000):
         Q_wp=0
         # Was passiert, wenn Speicher voll und überschüssige Wärme????????
 
+    #Berechnung des neuen thermischen Speicherstandes
     E_th[i+1]=E_th[i]-(Q_store*(delta_t/3600))
+    #Berechnung der el. Leistung der Wärmepumpe
     P_wp=Q_wp/COP
-
+    #Berrechnung benötigte el.Leistung --> Leistung Wärmepumpe- PV Leistung
     P_needed=P_demand[i]+P_wp-P_pv
 
+    # Einstellung des Bezugs aus der Batterie (laden oder entladen) und ob Strom gekauft oder verkauft wird (negativ = verkaufen)
     if P_needed > 0:
         match E_bat_pct:
-            case x if x >0.8:
-                P_bat= f_bat[0]*P_bat_max
+            case x if x >0.9:
+                P_bat= min((f_bat_use[0]*P_needed + f_bat_sell[0]*P_bat_max),P_bat_max)
+                P_buy= P_needed-P_bat
+                 
+            case x if x >0.6:
+                P_bat= min((f_bat_use[1]*P_needed + f_bat_sell[1]*P_bat_max),P_bat_max)
                 P_buy= P_needed-P_bat
                 
-                Q_wp= min((f_wp[0]*Q_needed + f_store_th[0]*Q_store_max),Q_wp_max)
-                P_bat= P_needed-Q_wp
-            
-            
-            case x if x >0.5:
+            case x if x >0.3:
+                P_bat= min((f_bat_use[2]*P_needed + f_bat_sell[2]*P_bat_max),P_bat_max)
+                P_buy= P_needed-P_bat
                 
-            case x if x >0.2:
+            case x if x >0.1:
+                P_bat= min((f_bat_use[3]*P_needed + f_bat_sell[3]*P_bat_max),P_bat_max)
+                P_buy= P_needed-P_bat
                 
             case x if x >0.005:
-                
+                P_bat= min((f_bat_use[4]*P_needed + f_bat_sell[4]*P_bat_max),P_bat_max)
+                P_buy= P_needed-P_bat
+
             case _:
-                Q_wp=Q_needed
-                Q_store=0
-    elif E_bat_pct<1:
-        if E_bat_pct<0.8:
-            Q_wp=0.1*Q_store_max 
-        else: Q_wp=0   
-        Q_store=Q_needed-Q_wp
+                P_bat= 0
+                P_buy= P_needed
+
+    elif E_bat_pct<1.0:
+        P_bat=P_needed
+        P_buy=0
     else:     
-        Q_wp=0
-        # Was passiert, wenn Speicher voll und überschüssige Wärme????????
+        P_bat=0
+        P_buy=P_needed
+        # Was passiert, wenn Speicher voll und überschüssige Strom????????
 
-
+    #Berrechnung des neuen Batteriestandes
     E_bat[i+1]=E_bat[i]-(P_bat*(delta_t/3600))
-
 
     #InnenTemp. berechnen
     if(i<(n-1)):
         delta_T_in= (((T_out[i]-T_in[i])/R_building)+Q_heat)*(delta_t/C_building)
         T_in[i+1]=T_in[i]+delta_T_in    
     
+    #Kosten aufsummieren --> negativ=gewinn
+    Cost+=(P_buy/1000)*(delta_t/3600)*Price[i]
 
     print(round(T_in[i],3), end="   ")
     #print(i, end=" ")
-    
+    print(round(Cost,3), end="   ")
+    print(round(P_buy,3), end="   ")
     print(round(P_pv,3), end="   ")
     print(round(P_needed,3), end="   ")
     print(round(E_bat_pct,2), end="   ")
