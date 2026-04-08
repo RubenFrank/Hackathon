@@ -28,10 +28,10 @@ price_high = 0.055
 
 
 #Daten aus CSV auslesen ++++++++++++++++++++++++++++++++++++++++++++++
-data = pd.read_csv("Daten_hackathon.csv")       
+data = pd.read_csv("Daten_Hackathon.csv")       
 n = len(data)       
 timestamp = data.iloc[:, 0].to_numpy()          #Timestamp aus CSV                           
-GHI = data.iloc[:, 2].to_numpy()                #GHI Strahlung für PV in W/m²          
+GHI = data.iloc[:, 1].to_numpy()                #GHI Strahlung für PV in W/m²          
 T_out = data.iloc[:, 3].to_numpy()              #Aussentemperatur in °C           
 Q_solarthermie = data.iloc[:, 4].to_numpy()     #Solarthermie-Erzeugung in W                   
 Price = data.iloc[:, 5].to_numpy()              #Strompreis in €/kWh           

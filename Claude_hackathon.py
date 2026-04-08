@@ -56,6 +56,7 @@ for i in range(n):
 
     cop_i  = COP(Tout)
     PPV[i] = GHI * APV * eta_PV
+    
 
     tin_i  = Tin[i]
     eth_i  = Eth[i]
@@ -147,6 +148,7 @@ df["Pbat_kW"]  = Pbat / 1000
 df["PPV_kW"]   = PPV  / 1000
 df["Pbuy_kW"]  = Pbuy / 1000
 df["Psell_kW"] = Psell/ 1000
+
 
 dt_h = dt / 3600
 
