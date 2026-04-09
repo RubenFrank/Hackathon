@@ -51,11 +51,13 @@ P_pv=0
 P_bat=0
 delta_T_in=0
 
-P_buy=0
+P_net=0
 Cost=0
 
+P_sum_net=0
 P_sum_load=0
 P_sum_buy=0
+P_sum_sell=0
 E_pv=0
 E_sum_pv=0
 
@@ -228,39 +230,39 @@ for i in range(n):
         match E_bat_pct:
             case x if x >0.999:
                 P_bat= min((f_bat_use[0]*P_needed + f_bat_sell[0]*P_bat_max),P_bat_max)
-                P_buy= P_needed-P_bat
+                P_net= P_needed-P_bat
 
             case x if x >0.9:
                 P_bat= min((f_bat_use[1]*P_needed + f_bat_sell[1]*P_bat_max),P_bat_max)
-                P_buy= P_needed-P_bat
+                P_net= P_needed-P_bat
                  
             case x if x >0.6:
                 P_bat= min((f_bat_use[2]*P_needed + f_bat_sell[2]*P_bat_max),P_bat_max)
-                P_buy= P_needed-P_bat
+                P_net= P_needed-P_bat
                 
             case x if x >0.3:
                 P_bat= min((f_bat_use[3]*P_needed + f_bat_sell[3]*P_bat_max),P_bat_max)
-                P_buy= P_needed-P_bat
+                P_net= P_needed-P_bat
                 
             case x if x >0.1:
                 P_bat= min((f_bat_use[4]*P_needed + f_bat_sell[4]*P_bat_max),P_bat_max)
-                P_buy= P_needed-P_bat
+                P_net= P_needed-P_bat
                 
             case x if x >0.005:
                 P_bat= min((f_bat_use[5]*P_needed + f_bat_sell[5]*P_bat_max),P_bat_max)
-                P_buy= P_needed-P_bat
+                P_net= P_needed-P_bat
 
             case _:
                 P_bat= 0
-                P_buy= P_needed
+                P_net= P_needed
 
     else:
         if E_bat_pct<0.99:
             P_bat=P_needed
-            P_buy=0
+            P_net=0
         else:     
             P_bat=0
-            P_buy=P_needed
+            P_net=P_needed
         # Was passiert, wenn Speicher voll und überschüssige Strom????????
 
     #Berrechnung des neuen Batteriestandes
@@ -272,12 +274,15 @@ for i in range(n):
         T_in[i+1]=T_in[i]+delta_T_in    
     
     #Kosten aufsummieren --> negativ=gewinn
-    Cost+=(P_buy/1000)*(delta_t/3600)*Price[i]
+    Cost+=(P_net/1000)*(delta_t/3600)*Price[i]
 
     P_sum_load+=P_demand[i]+P_wp
-    if P_buy>0:
-        P_sum_buy+=P_buy
+    if P_net>0:
+        P_sum_buy+=P_net
+    elif P_net<0:
+        P_sum_sell+=P_net
     
+    P_sum_net+=P_net
 
    # print(round(T_in[i],3), end="   ")
     #print(i, end=" ")
@@ -292,6 +297,9 @@ for i in range(n):
 
 
 autarkie=((P_sum_load-P_sum_buy)/P_sum_load)*100
+
+
+print(f"P_net:  {P_sum_net:10.3f} Wh   P_buy:  {P_sum_buy:10.3f} Wh   P_sell:  {P_sum_sell:10.3f} Wh")
 print(f"Autarkie:      {autarkie:10.3f} %")
 print(f"Gewinn:        {-Cost:10.3f} €")
 print(f"PV-Erzeugung:  {E_sum_pv:10.3f} kWh")
